@@ -1,0 +1,174 @@
+This file gives exampls of how GNU stow can be used.
+
+You have a "storage location" that has subdirectories for various programs and
+libraries that you would like to "install" by putting links to the =bin=
+directories in somthing like =~/.local/bin= which is in your =PATH=.
+
+The main options are
+- =-t ~/.local/=: Where the links will go
+- =-d ~/storage=: Where we have our packages
+- =-S AnApplication=: Say which package we want to "stow"
+
+** Basic operation
+A "package" would be something that has =./bin=, =./lib=, =./opt= directories.
+These names are optional and are only used here to help us know what's what.
+They could have been 'foo' and 'bar' but I refuse to use such identifiers.
+#+BEGIN_SRC txt
+/Users/pcarphin/storage/AnApplication/
+├── bin
+│   └── an_application_bin
+├── lib
+│   └── liban_application.so
+└── opt
+    └── an_application_sh.sh
+#+END_SRC
+
+We want to make it look like =~/.local/= is =AnApplication= in that
+=~/.local/bin/= will contain a file named =an_application_bin=.
+#+BEGIN_SRC txt
+/Users/pcarphin/.local/
+├── bin
+│   └── an_application_bin
+├── lib
+│   └── liban_application.so
+└── opt
+    └── an_application_sh.sh
+#+END_SRC
+And then we will do this with multiple packages.
+#+BEGIN_SRC txt
+/Users/pcarphin/.local
+├── bin
+│   ├── an_application_bin
+│   └── other_application
+├── lib
+│   ├── liban_application.so
+│   └── libother_application.so
+└── opt
+    ├── an_application_sh.sh
+    └── other_application_opt.sh
+#+END_SRC
+
+By using symlinks, GNU =stow= makes this happen.
+
+If there is nothing in =~/.local=, then =stow= will just create links
+pointing to the directories of =AnApplication=
+#+BEGIN_SRC sh
+    stow -t /Users/pcarphin/.local -d /Users/pcarphin/ApplicationStorage -S AnApplication
+#+END_SRC
+
+#+BEGIN_SRC txt
+/Users/pcarphin/.local/
+├── bin -> ../storage/AnApplication/bin
+├── lib -> ../storage/AnApplication/lib
+└── opt -> ../storage/AnApplication/opt
+#+END_SRC
+
+But once you start needing to stow something else, stow will take care of
+things:
+#+BEGIN_SRC sh
+    stow -t /Users/pcarphin/.local -d /Users/pcarphin/ApplicationStorage -S OtherApplication
+#+END_SRC
+
+#+BEGIN_SRC txt
+/Users/pcarphin/.local
+├── bin
+│   ├── an_application_bin -> ../../storage/AnApplication/bin/an_application_bin
+│   └── other_application -> ../../storage/OtherApplication/bin/other_application
+├── lib
+│   ├── liban_application.so -> ../../storage/AnApplication/lib/liban_application.so
+│   └── libother_application.so -> ../../storage/OtherApplication/lib/libother_application.so
+└── opt
+    ├── an_application_sh.sh -> ../../storage/AnApplication/opt/an_application_sh.sh
+    └── other_application_opt.sh -> ../../storage/OtherApplication/opt/other_application_opt.sh
+#+END_SRC
+
+** Other considerations
+
+*** Overriding
+
+We can override previously stowed things if they come from the same storage.
+The =bin=, =lib= and =opt= directories of the package =link_collision= contain
+files with the same names as those of =AnApplication=.
+
+#+BEGIN_SRC sh
+    stow -t /Users/pcarphin/.local -d /Users/pcarphin/ApplicationStorage -S AnApplication
+    stow -t /Users/pcarphin/.local -d /Users/pcarphin/ApplicationStorage -S link_collision --override='.*'
+#+END_SRC
+
+#+BEGIN_SRC txt
+/Users/pcarphin/.local
+├── bin
+│   └── an_application_bin -> ../../storage/link_collision/bin/an_application_bin
+├── lib
+│   └── liban_application.so -> ../../storage/link_collision/lib/liban_application.so
+└── opt
+    └── an_application_sh.sh -> ../../storage/link_collision/opt/an_application_sh.sh
+#+END_SRC
+
+We could not do this if the two packages were in different storage locations.
+
+We could not do this to override files that are not owned by the storage
+location of the current command.
+
+*** Ownership
+
+The reason we don't have 
+#+BEGIN_SRC sh
+    stow -t $install_site -S $storage_dir/AnApplication
+#+END_SRC
+is because GNU =stow= wants to have a concept of ownership.  This
+#+BEGIN_SRC sh
+    stow -t $install_site -d $storage_dir -S AnApplication
+#+END_SRC
+allows =stow= to be safe about not messing with things that are owned by another storage.
+
+If =.local= was empty before the =stow= command, it would look like this after.
+#+BEGIN_SRC txt
+/Users/pcarphin/.local/
+├── bin -> ../storage/AnApplication/bin
+├── lib -> ../storage/AnApplication/lib
+└── opt -> ../storage/AnApplication/opt
+#+END_SRC
+Now, =bin= is a link to something in =storage=.
+
+When we do this command
+#+BEGIN_SRC sh
+    stow -t $install_site -d $other_storage_dir -S OtherApplication
+#+END_SRC
+=stow= will want to replace =bin= with a directory containing links.  But since
+right now we're =stow=-ing from =$other_storage_dir=, =stow= will refuse to
+delete the =bin= links that are already there.
+
+There are ways around this.  The simplest one being to create empty =bin=,
+=lib=, =opt= directories in =.local= before doing anything.  This would make the
+previously discussed case work:
+#+BEGIN_SRC txt
+/Users/pcarphin/.local
+├── bin
+│   ├── an_application_bin -> ../../storage/AnApplication/bin/an_application_bin
+│   └── other_application -> ../../other-storage/OtherApplication/bin/other_application
+├── lib
+│   ├── liban_application.so -> ../../storage/AnApplication/lib/liban_application.so
+│   └── libother_application.so -> ../../other-storage/OtherApplication/lib/libother_application.so
+└── opt
+    ├── an_application_sh.sh -> ../../storage/AnApplication/opt/an_application_sh.sh
+    └── other_application_opt.sh -> ../../other-storage/OtherApplication/opt/other_application_opt.sh
+#+END_SRC
+
+
+*** Ignoring
+
+Files beginning with ='.'= are ignored.
+
+Should we want to ignore other things of our choosing we can do it like this.
+
+#+BEGIN_SRC sh
+    stow -t $install_site -d $storage_dir -S AnApplication --ignore '.*_internal'
+#+END_SRC
+
+
+
+*** Regex
+
+Note that the options =--override= and =--ignore= take regular expressions and
+not globs.  For instance, to match anything you cannot use ='*'=, that's a glob. You need to use ='.*'=.
