@@ -157,7 +157,7 @@ previously discussed case work:
 
 
 *** Ignoring
-
+**** Command line
 Files beginning with ='.'= are ignored.
 
 Should we want to ignore other things of our choosing we can do it like this.
@@ -166,7 +166,9 @@ Should we want to ignore other things of our choosing we can do it like this.
     stow -t $install_site -d $storage_dir -S AnApplication --ignore '.*_internal'
 #+END_SRC
 
+**** =.stow-local-ignore=
 
+File placed at the root of a package.  Each line is like an argument to =--ignore=.
 
 *** Regex
 

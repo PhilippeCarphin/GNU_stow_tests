@@ -1,0 +1,4 @@
+stow-local-ignored-dir
+.git
+.gitignore
+MISC
